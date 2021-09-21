@@ -37,8 +37,7 @@ app.add_middleware(
 @app.post(path="/slack")
 async def slack(request: Request, db: Session = Depends(get_db)):
     request_event = await request.json()
-    slack_service = SlackService()
-    response = slack_service.check_challenge(request_event, db)
+    response = SlackService.check_challenge(request_event, db)
 
     return response
 
