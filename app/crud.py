@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app import schemas
 from app.models import User, Reaction
-from schemas import UserReceivedReactions, ReceivedEmojiInfo
+from schemas import UserReceivedReactions, ReceivedEmojiInfo, ReceivedReactionUser
 
 BEST_LOVE = ['heart']
 BEST_FUNNY = ['kkkk', '기쁨']
@@ -32,7 +32,7 @@ def get_users(db: Session, year: int, month: int):
         sub = sub.filter(Reaction.month == month)
     sub = sub.group_by(Reaction.to_user_id).subquery()
 
-    return db.query(
+    users = db.query(
         User.id,
         User.avatar_url,
         User.username,
@@ -43,6 +43,44 @@ def get_users(db: Session, year: int, month: int):
     ).order_by(
         desc('received_reaction')
     ).all()
+
+    user_infos = []
+    for user in users:
+        user_infos.append(
+            ReceivedReactionUser(
+                id=user.id,
+                avatar_url=user.avatar_url,
+                username=user.username,
+                my_reaction=user.my_reaction,
+                received_reaction=user.received_reaction
+            )
+        )
+
+    return user_infos
+
+
+def get_my_reaction(db: Session, slack_id: str, year: int, month: int):
+
+    reactions = db.query(Reaction).options(
+        joinedload(Reaction.from_user),
+        joinedload(Reaction.to_user),
+    ).filter(
+        Reaction.to_user.has(slack_id=slack_id),
+    )
+
+    if year:
+        reactions = reactions.filter(Reaction.year == year)
+    if month:
+        reactions = reactions.filter(Reaction.month == month)
+
+    reaction_data = {}
+    for reaction in reactions:
+        if not reaction_data.get(reaction.type):
+            reaction_data[reaction.type] = reaction.count
+        else:
+            reaction_data[reaction.type] += reaction.count
+
+    return reaction_data
 
 
 def get_reactions(db: Session, user_id: int, year: int, month: int):
@@ -57,9 +95,12 @@ def get_reactions(db: Session, user_id: int, year: int, month: int):
         joinedload(Reaction.to_user),
     ).filter(
         Reaction.to_user_id == user_id,
-        Reaction.year == year,
-        Reaction.month == month,
-    ).all()
+    )
+
+    if year:
+        reactions = reactions.filter(Reaction.year == year)
+    if month:
+        reactions = reactions.filter(Reaction.month == month)
 
     reaction_data = {}
     for reaction in reactions:

@@ -16,8 +16,8 @@ class User(BaseModel):
 
 class ReceivedReactionUser(BaseModel):
     id: int
+    avatar_url: str
     username: str
-    slack_id: str
     my_reaction: int
     received_reaction: int
 

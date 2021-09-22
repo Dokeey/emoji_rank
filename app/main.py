@@ -68,12 +68,12 @@ def get_user(
     """
     user get api
     """
-    db_user = crud.get_users(db, year, month)
+    users = crud.get_users(db, year, month)
 
-    if not db_user:
+    if not users:
         raise HTTPException(status_code=404, detail="Does Not Exists (User)")
 
-    return db_user
+    return users
 
 
 @app.get("/users/{user_id}/reactions/", response_model=List[schemas.UserReceivedReactions],
@@ -84,12 +84,27 @@ def get_reactions(
     year: Optional[int] = None,
     month: Optional[int] = None
 ):
-    db_user = crud.get_reactions(db, user_id, year, month)
+    reactions = crud.get_reactions(db, user_id, year, month)
 
-    if not db_user:
+    if not reactions:
         raise HTTPException(status_code=404, detail="Does Not Exists (User)")
 
-    return db_user
+    return reactions
+
+
+@app.get("/users/{slack_id}/my_reaction/", description="특정 유저가 받은 reaction 정보를 전달합니다.")
+def get_my_reaction(
+    db: Session = Depends(get_db),
+    slack_id: str = '',
+    year: Optional[int] = None,
+    month: Optional[int] = None
+):
+    reaction_info = crud.get_my_reaction(db, slack_id, year, month)
+
+    if not reaction_info:
+        raise HTTPException(status_code=404, detail="Does Not Exists (User)")
+
+    return reaction_info
 
 
 @app.get("/")
