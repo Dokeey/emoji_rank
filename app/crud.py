@@ -142,7 +142,7 @@ def update_added_reaction(db: Session, type: str, item_user: str, user: str, is_
     now_date = datetime.now().date()
     reaction = db.query(Reaction).filter(
         Reaction.year == now_date.year, Reaction.month == now_date.month,
-        Reaction.from_user == from_user.id, Reaction.to_user == to_user.id,
+        Reaction.from_user_id == from_user.id, Reaction.to_user_id == to_user.id,
         Reaction.type == type
     ).first()
 
@@ -160,8 +160,8 @@ def update_added_reaction(db: Session, type: str, item_user: str, user: str, is_
             year=now_date.year,
             month=now_date.month,
             type=type,
-            from_user=from_user.id,
-            to_user=to_user.id
+            from_user_id=from_user.id,
+            to_user_id=to_user.id
         )
         reaction.count = 1
     else:
