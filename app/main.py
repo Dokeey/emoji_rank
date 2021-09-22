@@ -46,7 +46,7 @@ async def slack(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post("/users/", response_model=schemas.User)
-def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+async def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     """
     user create api
     """
@@ -60,7 +60,7 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @app.get("/users/", response_model=List[ReceivedReactionUser],
          description="유저리스트를 반환합니다. 받은 reaction 이 높은 순으로 정렬합니다.")
-def get_user(
+async def get_user(
     db: Session = Depends(get_db),
     year: Optional[int] = None,
     month: Optional[int] = None
@@ -78,7 +78,7 @@ def get_user(
 
 @app.get("/users/{user_id}/reactions/", response_model=List[schemas.UserReceivedReactions],
          description="특정 유저가 받은 reaction 과 전달한 유저정보를 반환합니다.")
-def get_reactions(
+async def get_reactions(
     db: Session = Depends(get_db),
     user_id: int = 0,
     year: Optional[int] = None,
@@ -93,7 +93,7 @@ def get_reactions(
 
 
 @app.get("/users/{slack_id}/my_reaction/", description="특정 유저가 받은 reaction 정보를 전달합니다.")
-def get_my_reaction(
+async def get_my_reaction(
     db: Session = Depends(get_db),
     slack_id: str = '',
     year: Optional[int] = None,
@@ -108,5 +108,5 @@ def get_my_reaction(
 
 
 @app.get("/")
-def read_root():
+async def read_root():
     return {"Hello": "World"}
