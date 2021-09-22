@@ -2,11 +2,13 @@ import sys
 import os
 
 # 모듈 경로를 못찾는 경우가 있어서 sys.path 에 경로 추가 (IDE를 사용하면 잘 찾음)
+from schemas import ReceivedReactionUser
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
 if os.path.dirname(script_dir) not in sys.path:
     sys.path.insert(0, os.path.dirname(script_dir))
 
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import FastAPI, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -21,9 +23,7 @@ from app import crud, schemas
 Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
-origins = [
-    '*'
-]
+origins = ['*']
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +36,9 @@ app.add_middleware(
 
 @app.post(path="/slack")
 async def slack(request: Request, db: Session = Depends(get_db)):
+    """
+    slack webhook api
+    """
     request_event = await request.json()
     response = SlackService.check_challenge(request_event, db)
 
@@ -44,6 +47,9 @@ async def slack(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/users/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    """
+    user create api
+    """
     db_user = crud.get_user(db, item_user=user.slack_id)
 
     if db_user:
@@ -52,9 +58,33 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     return crud.create_user(db=db, user=user)
 
 
-@app.get("/users/")
-def get_user(db: Session = Depends(get_db), year: Optional[int] = None, month: Optional[int] = None):
+@app.get("/users/", response_model=List[ReceivedReactionUser],
+         description="유저리스트를 반환합니다. 받은 reaction 이 높은 순으로 정렬합니다.")
+def get_user(
+    db: Session = Depends(get_db),
+    year: Optional[int] = None,
+    month: Optional[int] = None
+):
+    """
+    user get api
+    """
     db_user = crud.get_users(db, year, month)
+
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Does Not Exists (User)")
+
+    return db_user
+
+
+@app.get("/users/{user_id}/reactions/", response_model=List[schemas.UserReceivedReactions],
+         description="특정 유저가 받은 reaction 과 전달한 유저정보를 반환합니다.")
+def get_reactions(
+    db: Session = Depends(get_db),
+    user_id: int = 0,
+    year: Optional[int] = None,
+    month: Optional[int] = None
+):
+    db_user = crud.get_reactions(db, user_id, year, month)
 
     if not db_user:
         raise HTTPException(status_code=404, detail="Does Not Exists (User)")

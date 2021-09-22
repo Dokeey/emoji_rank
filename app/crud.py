@@ -1,11 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import text, literal_column
-from sqlalchemy.orm import Session
+from sqlalchemy import func, and_, desc
+from sqlalchemy.orm import Session, joinedload
 
 from app import schemas
 from app.models import User, Reaction
-
+from schemas import UserReceivedReactions, ReceivedEmojiInfo
 
 BEST_LOVE = ['heart']
 BEST_FUNNY = ['kkkk', '기쁨']
@@ -23,28 +23,57 @@ def get_users(db: Session, year: int, month: int):
     :param year: 년
     :param month: 월
     """
-
-    # TODO: sqlalchemy ORM이 익숙하지 않아 raw Query 사용 -> ORM으로 변환해보기
+    sub = db.query(Reaction.to_user_id, func.sum(Reaction.count))
     if year and month:
-        _filter = f'WHERE year={year} AND month={month}'
+        sub = sub.filter(Reaction.year == year, Reaction.month == month)
     elif year:
-        _filter = f'WHERE year={year}'
-    elif year:
-        _filter = f'WHERE month={month}'
-    else:
-        _filter = ''
+        sub = sub.filter(Reaction.year == year)
+    elif month:
+        sub = sub.filter(Reaction.month == month)
+    sub = sub.group_by(Reaction.to_user_id).subquery()
 
     return db.query(
-        literal_column("avatar_url"),
-        literal_column("username"),
-        literal_column("my_reaction"),
-        literal_column("received_reaction")
-    ).from_statement(text(
-        "SELECT avatar_url, username, my_reaction, IFNULL(re.count, 0) AS received_reaction "
-        "FROM users LEFT OUTER JOIN ("
-        f"SELECT to_user, SUM(count) AS count FROM reactions {_filter} GROUP BY to_user) "
-        "AS re ON re.to_user = users.id ORDER BY received_reaction DESC")
+        User.id,
+        User.avatar_url,
+        User.username,
+        User.my_reaction,
+        func.ifnull(sub.c.get('sum(reactions.count)'), 0).label('received_reaction')
+    ).outerjoin(
+        sub, and_(sub.c.to_user_id == User.id)
+    ).order_by(
+        desc('received_reaction')
     ).all()
+
+
+def get_reactions(db: Session, user_id: int, year: int, month: int):
+    """
+    :param user_id: 유저 ID
+    :param year: 년
+    :param month: 월
+    """
+
+    reactions = db.query(Reaction).options(
+        joinedload(Reaction.from_user),
+        joinedload(Reaction.to_user),
+    ).filter(
+        Reaction.to_user_id == user_id,
+        Reaction.year == year,
+        Reaction.month == month,
+    ).all()
+
+    reaction_data = {}
+    for reaction in reactions:
+        from_user_name = reaction.from_user.username
+        if not reaction_data.get(from_user_name):
+            reaction_data[from_user_name] = {
+                'emoji_infos': [ReceivedEmojiInfo(type=reaction.type, count=reaction.count)]
+            }
+        else:
+            reaction_data[from_user_name]['emoji_infos'].append(
+                ReceivedEmojiInfo(type=reaction.type, count=reaction.count)
+            )
+
+    return [UserReceivedReactions(username=key, emoji=value.get('emoji_infos')) for key, value in reaction_data.items()]
 
 
 def create_user(db: Session, user: schemas.UserCreate):
@@ -87,7 +116,12 @@ def update_added_reaction(db: Session, type: str, item_user: str, user: str, is_
         reaction.count += 1 if is_increase else -1
     elif is_increase:
         reaction = Reaction(
-            year=now_date.year, month=now_date.month, type=type, from_user=from_user.id, to_user=to_user.id)
+            year=now_date.year,
+            month=now_date.month,
+            type=type,
+            from_user=from_user.id,
+            to_user=to_user.id
+        )
         reaction.count = 1
     else:
         return
@@ -111,20 +145,25 @@ def update_my_reaction(db: Session, user: User, is_increase: bool):
 
 def get_member_reaction_count(db: Session, user: User, year: int, month: int):
     """
-        멤버가 받은 reaction을 현재 prise type별로 가지고 오는 함수
-        {user_id : '123123', love : 3, funny : 5, help : 5, good : 10, bad : 5}
+    멤버가 받은 reaction을 현재 prise type별로 가지고 오는 함수
+    {user_id : '123123', love : 3, funny : 5, help : 5, good : 10, bad : 5}
     """
 
     # 리액션별로 count
-    reaction_list = db.query(Reaction).filter(Reaction.to_user == user.id, Reaction.year == year, Reaction.month == month)
+    reaction_list = db.query(Reaction).filter(
+        Reaction.to_user == user.id,
+        Reaction.year == year,
+        Reaction.month == month
+    )
 
-    result = dict()
-    result['username'] = user.username
-    result['love'] = 0
-    result['funny'] = 0
-    result['help'] = 0
-    result['good'] = 0
-    result['bad'] = 0
+    result = {
+        'username': user.username,
+        'love': 0,
+        'funny': 0,
+        'help': 0,
+        'good': 0,
+        'bad': 0,
+    }
 
     for reaction in reaction_list:
         if reaction.type in BEST_LOVE:
