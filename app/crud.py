@@ -192,7 +192,7 @@ def get_member_reaction_count(db: Session, user: User, year: int, month: int):
 
     # 리액션별로 count
     reaction_list = db.query(Reaction).filter(
-        Reaction.to_user == user.id,
+        Reaction.to_user_id == user.id,
         Reaction.year == year,
         Reaction.month == month
     )
