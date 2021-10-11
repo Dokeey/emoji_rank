@@ -73,12 +73,26 @@ def get_my_reaction(db: Session, slack_id: str, year: int, month: int):
     if month:
         reactions = reactions.filter(Reaction.month == month)
 
+    def change_str_to_emoji(emoji_type: str):
+        if emoji_type in BEST_LOVE:
+            return '❤️'
+        elif emoji_type in BEST_FUNNY:
+            return '🤣'
+        elif emoji_type in BEST_HELP:
+            return '🙏'
+        elif emoji_type in BEST_GOOD:
+            return '👍'
+        elif emoji_type in BEST_BAD:
+            return '👀'
+        else:
+            return '🐹'
+
     reaction_data = {}
     for reaction in reactions:
-        if not reaction_data.get(reaction.type):
-            reaction_data[reaction.type] = reaction.count
+        if not reaction_data.get(change_str_to_emoji(reaction.type)):
+            reaction_data[change_str_to_emoji(reaction.type)] = reaction.count
         else:
-            reaction_data[reaction.type] += reaction.count
+            reaction_data[change_str_to_emoji(reaction.type)] += reaction.count
 
     return reaction_data
 
